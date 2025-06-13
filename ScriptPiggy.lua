@@ -159,7 +159,7 @@ local bodyVelocity
 local mobileFlyDir = Vector3.new(0, 0, 0)
 local mobileFlyActive = false
 
--- Add mobile fly buttons
+-- Добавление мобильных кнопок управления флаем
 local function createMobileFlyButtons()
     if not UIS.TouchEnabled then return end
     if game.CoreGui:FindFirstChild("PiggyFlyControls") then return end
@@ -190,7 +190,6 @@ local function createMobileFlyButtons()
         btn.Font = Enum.Font.SourceSansBold
         btn.TextSize = 28
         btn.Parent = ScreenGui
-
         btn.AutoButtonColor = false
 
         btn.MouseButton1Down:Connect(function()
@@ -235,7 +234,7 @@ RunService.Heartbeat:Connect(function()
         end
 
         local moveDir = Vector3.new(0, 0, 0)
-        -- PC controls
+        -- ПК-управление
         if UIS:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + Camera.CFrame.LookVector end
         if UIS:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - Camera.CFrame.LookVector end
         if UIS:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - Camera.CFrame.RightVector end
@@ -243,13 +242,12 @@ RunService.Heartbeat:Connect(function()
         if UIS:IsKeyDown(Enum.KeyCode.Space) then moveDir = moveDir + Vector3.new(0, 1, 0) end
         if UIS:IsKeyDown(Enum.KeyCode.LeftControl) or UIS:IsKeyDown(Enum.KeyCode.LeftShift) then moveDir = moveDir - Vector3.new(0, 1, 0) end
 
-        -- Mobile controls
+        -- Мобильное управление
         if UIS.TouchEnabled then
             if state.fly then
                 createMobileFlyButtons()
             end
             if mobileFlyActive and mobileFlyDir.Magnitude > 0 then
-                -- Forward/back/left/right relative to camera
                 local camCF = Camera.CFrame
                 local rel = Vector3.new(
                     camCF.RightVector.X * mobileFlyDir.X + camCF.LookVector.X * mobileFlyDir.Z,

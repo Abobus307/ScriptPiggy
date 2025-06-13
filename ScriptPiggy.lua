@@ -154,7 +154,13 @@ UIS.JumpRequest:Connect(function()
 end)
 
 local bodyVelocity
+
 RunService.Heartbeat:Connect(function()
+    -- Ensure Roblox globals are available
+    local Vector3 = Vector3
+    local Enum = Enum
+    local Instance = Instance
+
     if state.fly and LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
         local root = LP.Character.HumanoidRootPart
         if not bodyVelocity or bodyVelocity.Parent ~= root then
@@ -165,7 +171,7 @@ RunService.Heartbeat:Connect(function()
             bodyVelocity.Parent = root
         end
 
-        local moveDir = Vector3.new()
+        local moveDir = Vector3.new(0, 0, 0)
         if UIS:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + Camera.CFrame.LookVector end
         if UIS:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - Camera.CFrame.LookVector end
         if UIS:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - Camera.CFrame.RightVector end
@@ -174,7 +180,7 @@ RunService.Heartbeat:Connect(function()
         if UIS:IsKeyDown(Enum.KeyCode.LeftControl) or UIS:IsKeyDown(Enum.KeyCode.LeftShift) then moveDir = moveDir - Vector3.new(0, 1, 0) end
 
         if moveDir.Magnitude > 0 then
-            bodyVelocity.Velocity = moveDir.Unit * state.flySpeed
+            bodyVelocity.Velocity = moveDir.Unit * (state.flySpeed or 50)
         else
             bodyVelocity.Velocity = Vector3.new(0, 0, 0)
         end

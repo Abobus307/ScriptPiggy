@@ -155,12 +155,75 @@ end)
 
 local bodyVelocity
 
-RunService.Heartbeat:Connect(function()
-    -- Ensure Roblox globals are available
-    local Vector3 = Vector3
-    local Enum = Enum
-    local Instance = Instance
+-- Mobile fly controls state
+local mobileFlyDir = Vector3.new(0, 0, 0)
+local mobileFlyActive = false
 
+-- Add mobile fly buttons
+local function createMobileFlyButtons()
+    if not UIS.TouchEnabled then return end
+    if game.CoreGui:FindFirstChild("PiggyFlyControls") then return end
+
+    local ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Name = "PiggyFlyControls"
+    ScreenGui.ResetOnSpawn = false
+    ScreenGui.Parent = game.CoreGui
+
+    local directions = {
+        {Name="Up",    Pos=UDim2.new(0.85,0,0.6,0), Vec=Vector3.new(0,1,0), Text="↑"},
+        {Name="Down",  Pos=UDim2.new(0.85,0,0.8,0), Vec=Vector3.new(0,-1,0), Text="↓"},
+        {Name="Left",  Pos=UDim2.new(0.8,0,0.7,0), Vec=Vector3.new(-1,0,0), Text="←"},
+        {Name="Right", Pos=UDim2.new(0.9,0,0.7,0), Vec=Vector3.new(1,0,0), Text="→"},
+        {Name="Fwd",   Pos=UDim2.new(0.85,0,0.7,0), Vec=Vector3.new(0,0,-1), Text="⯅"},
+        {Name="Back",  Pos=UDim2.new(0.85,0,0.9,0), Vec=Vector3.new(0,0,1), Text="⯆"},
+    }
+
+    for _, dir in ipairs(directions) do
+        local btn = Instance.new("TextButton")
+        btn.Name = dir.Name
+        btn.Size = UDim2.new(0, 40, 0, 40)
+        btn.Position = dir.Pos
+        btn.BackgroundTransparency = 0.3
+        btn.BackgroundColor3 = Color3.fromRGB(60,60,60)
+        btn.Text = dir.Text
+        btn.TextColor3 = Color3.new(1,1,1)
+        btn.Font = Enum.Font.SourceSansBold
+        btn.TextSize = 28
+        btn.Parent = ScreenGui
+
+        btn.AutoButtonColor = false
+
+        btn.MouseButton1Down:Connect(function()
+            mobileFlyActive = true
+            mobileFlyDir = mobileFlyDir + dir.Vec
+        end)
+        btn.MouseButton1Up:Connect(function()
+            mobileFlyDir = mobileFlyDir - dir.Vec
+            if mobileFlyDir.Magnitude == 0 then
+                mobileFlyActive = false
+            end
+        end)
+        -- Touch support
+        btn.TouchTap:Connect(function()
+            mobileFlyActive = true
+            mobileFlyDir = mobileFlyDir + dir.Vec
+            task.wait(0.15)
+            mobileFlyDir = mobileFlyDir - dir.Vec
+            if mobileFlyDir.Magnitude == 0 then
+                mobileFlyActive = false
+            end
+        end)
+    end
+end
+
+local function removeMobileFlyButtons()
+    local gui = game.CoreGui:FindFirstChild("PiggyFlyControls")
+    if gui then gui:Destroy() end
+    mobileFlyDir = Vector3.new(0,0,0)
+    mobileFlyActive = false
+end
+
+RunService.Heartbeat:Connect(function()
     if state.fly and LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
         local root = LP.Character.HumanoidRootPart
         if not bodyVelocity or bodyVelocity.Parent ~= root then
@@ -172,12 +235,32 @@ RunService.Heartbeat:Connect(function()
         end
 
         local moveDir = Vector3.new(0, 0, 0)
+        -- PC controls
         if UIS:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + Camera.CFrame.LookVector end
         if UIS:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - Camera.CFrame.LookVector end
         if UIS:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - Camera.CFrame.RightVector end
         if UIS:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + Camera.CFrame.RightVector end
         if UIS:IsKeyDown(Enum.KeyCode.Space) then moveDir = moveDir + Vector3.new(0, 1, 0) end
         if UIS:IsKeyDown(Enum.KeyCode.LeftControl) or UIS:IsKeyDown(Enum.KeyCode.LeftShift) then moveDir = moveDir - Vector3.new(0, 1, 0) end
+
+        -- Mobile controls
+        if UIS.TouchEnabled then
+            if state.fly then
+                createMobileFlyButtons()
+            end
+            if mobileFlyActive and mobileFlyDir.Magnitude > 0 then
+                -- Forward/back/left/right relative to camera
+                local camCF = Camera.CFrame
+                local rel = Vector3.new(
+                    camCF.RightVector.X * mobileFlyDir.X + camCF.LookVector.X * mobileFlyDir.Z,
+                    mobileFlyDir.Y,
+                    camCF.RightVector.Z * mobileFlyDir.X + camCF.LookVector.Z * mobileFlyDir.Z
+                )
+                moveDir = moveDir + rel
+            end
+        else
+            removeMobileFlyButtons()
+        end
 
         if moveDir.Magnitude > 0 then
             bodyVelocity.Velocity = moveDir.Unit * (state.flySpeed or 50)
@@ -189,6 +272,7 @@ RunService.Heartbeat:Connect(function()
             bodyVelocity:Destroy()
             bodyVelocity = nil
         end
+        removeMobileFlyButtons()
     end
 end)
 

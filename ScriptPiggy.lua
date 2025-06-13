@@ -155,24 +155,34 @@ end)
 
 local bodyVelocity
 RunService.Heartbeat:Connect(function()
-    if state.fly then
-        if not bodyVelocity and LP.Character then
-            local root = LP.Character:FindFirstChild("HumanoidRootPart")
-            if root then
-                bodyVelocity = Instance.new("BodyVelocity", root)
-                bodyVelocity.MaxForce = Vector3.new(1e5,1e5,1e5)
-            end
+    if state.fly and LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
+        local root = LP.Character.HumanoidRootPart
+        if not bodyVelocity or bodyVelocity.Parent ~= root then
+            if bodyVelocity then bodyVelocity:Destroy() end
+            bodyVelocity = Instance.new("BodyVelocity")
+            bodyVelocity.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+            bodyVelocity.P = 1e4
+            bodyVelocity.Parent = root
         end
-        if bodyVelocity then
-            local dir = Vector3.new()
-            if UIS:IsKeyDown(Enum.KeyCode.W) then dir = dir + Camera.CFrame.LookVector end
-            if UIS:IsKeyDown(Enum.KeyCode.S) then dir = dir - Camera.CFrame.LookVector end
-            if UIS:IsKeyDown(Enum.KeyCode.A) then dir = dir - Camera.CFrame.RightVector end
-            if UIS:IsKeyDown(Enum.KeyCode.D) then dir = dir + Camera.CFrame.RightVector end
-            bodyVelocity.Velocity = dir.Unit * state.flySpeed
+
+        local moveDir = Vector3.new()
+        if UIS:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + Camera.CFrame.LookVector end
+        if UIS:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - Camera.CFrame.LookVector end
+        if UIS:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - Camera.CFrame.RightVector end
+        if UIS:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + Camera.CFrame.RightVector end
+        if UIS:IsKeyDown(Enum.KeyCode.Space) then moveDir = moveDir + Vector3.new(0, 1, 0) end
+        if UIS:IsKeyDown(Enum.KeyCode.LeftControl) or UIS:IsKeyDown(Enum.KeyCode.LeftShift) then moveDir = moveDir - Vector3.new(0, 1, 0) end
+
+        if moveDir.Magnitude > 0 then
+            bodyVelocity.Velocity = moveDir.Unit * state.flySpeed
+        else
+            bodyVelocity.Velocity = Vector3.new(0, 0, 0)
         end
     else
-        if bodyVelocity then bodyVelocity:Destroy() bodyVelocity = nil end
+        if bodyVelocity then
+            bodyVelocity:Destroy()
+            bodyVelocity = nil
+        end
     end
 end)
 
@@ -577,7 +587,7 @@ local function manageDoorRemoval()
     end
 end
 
-UtilitiesTab:CreateSection("Двери/Папки карты")
+UtilitiesTab:CreateSection("Doors")
 UtilitiesTab:CreateToggle({
     Name = "Убрать двери и папки карты",
     CurrentValue = doorState.removeAll,
@@ -669,11 +679,14 @@ end)
 TeleportTab:CreateButton({
     Name = "Телепортироваться к игроку",
     Callback = function()
-        local selectedPlayer = Dropdown:GetCurrentOption()
+        local selected = Dropdown:GetCurrentOption()
+        local selectedPlayer = type(selected) == "table" and selected[1] or selected
         if selectedPlayer and selectedPlayer ~= "" then
             local targetPlayer = Players:FindFirstChild(selectedPlayer)
-            if targetPlayer and targetPlayer.Character then
-                LP.Character.HumanoidRootPart.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame
+            if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                if LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
+                    LP.Character.HumanoidRootPart.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame
+                end
             else
                 Rayfield:Notify({
                     Title = "Ошибка",

@@ -1,4 +1,4 @@
--- Piggy Script by Вася2 (оптимизированная версия)
+-- Piggy Script by Вася2 (финальная оптимизация)
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
@@ -220,19 +220,21 @@ end)
 -- Утилиты: автоматическое определение карты, fullbright/fog, remove folders & doors, чертёж
 -- ====================================================================
 
--- 1) Поиск карты (модель с наибольшим кол-вом BasePart)
+-- Список карт из авто-голосования
+local MAP_NAMES = {
+    "House", "Station", "Gallery", "Forest", "School", "Hospital", 
+    "Metro", "Carnival", "City", "Mall", "Outpost", "DistortedMemory", "Plant"
+}
+
+-- 1) Поиск карты по имени из списка
 local function findMapModel()
-    local best, maxCount = nil, 0
-    for _, m in ipairs(workspace:GetChildren()) do
-        if m:IsA("Model") then
-            local cnt = 0
-            for _, d in ipairs(m:GetDescendants()) do
-                if d:IsA("BasePart") then cnt = cnt + 1 end
-            end
-            if cnt > maxCount then best, maxCount = m, cnt end
+    for _, mapName in ipairs(MAP_NAMES) do
+        local model = workspace:FindFirstChild(mapName)
+        if model and model:IsA("Model") then
+            return model
         end
     end
-    return best
+    return nil
 end
 
 -- 2) Удаление ТОЛЬКО папок Doors и ExtraDoors в карте
@@ -302,7 +304,7 @@ local function manageUtilities()
     end
 end
 
--- 5) Оптимизированный Fullbright / Fog (обновление только при изменении состояния)
+-- 5) Оптимизированный Fullbright / Fog
 local fullbrightConnection
 if fullbrightConnection then fullbrightConnection:Disconnect() end
 fullbrightConnection = game:GetService("RunService").Heartbeat:Connect(function()
@@ -313,7 +315,7 @@ fullbrightConnection = game:GetService("RunService").Heartbeat:Connect(function(
     end
 end)
 
--- 6) Исправленный сбор чертежей (телепорт к ближайшему)
+-- 6) Исправленный сбор чертежей
 local function collectBlueprints()
     local char = LP.Character
     if not char then 
@@ -327,43 +329,37 @@ local function collectBlueprints()
         return 
     end
     
-    -- Ищем ближайший чертеж
-    local closestBlueprint = nil
-    local minDistance = math.huge
+    -- Ищем модель карты
+    local mapModel = findMapModel()
+    if not mapModel then
+        Rayfield:Notify({Title="Чертёж",Content="Карта не найдена",Duration=3,Image=4483362458})
+        return
+    end
     
-    for _, item in ipairs(workspace:GetDescendants()) do
+    -- Ищем чертеж внутри модели карты
+    local blueprint = nil
+    for _, item in ipairs(mapModel:GetDescendants()) do
         if item.Name == "BlueprintItem" then
-            local position = nil
-            if item:IsA("BasePart") then
-                position = item.Position
-            elseif item:IsA("Model") and item.PrimaryPart then
-                position = item.PrimaryPart.Position
-            end
-            
-            if position then
-                local distance = (root.Position - position).Magnitude
-                if distance < minDistance then
-                    minDistance = distance
-                    closestBlueprint = item
-                end
-            end
+            blueprint = item
+            break
         end
     end
     
-    if not closestBlueprint then
-        Rayfield:Notify({Title="Чертёж",Content="Чертёж не найден!",Duration=3,Image=4483362458})
+    if not blueprint then
+        Rayfield:Notify({Title="Чертёж",Content="Чертёж не найден на карте",Duration=3,Image=4483362458})
         return
     end
     
     -- Определяем позицию чертежа
     local targetPos = nil
-    if closestBlueprint:IsA("BasePart") then
-        targetPos = closestBlueprint.Position
-    elseif closestBlueprint:IsA("Model") and closestBlueprint.PrimaryPart then
-        targetPos = closestBlueprint.PrimaryPart.Position
+    if blueprint:IsA("BasePart") then
+        targetPos = blueprint.Position
+    elseif blueprint:IsA("Model") and blueprint.PrimaryPart then
+        targetPos = blueprint.PrimaryPart.Position
+    else
+        Rayfield:Notify({Title="Чертёж",Content="Неизвестный тип чертежа",Duration=3,Image=4483362458})
+        return
     end
-    
-    if not targetPos then return end
     
     -- Отключаем коллизии
     local originalCollisions = {}
@@ -532,7 +528,7 @@ UtilitiesTab:CreateButton({
 
 UtilitiesTab:CreateSection("Doors & Folders")
 UtilitiesTab:CreateToggle({
-    Name = "Убрать двери и папки",
+    Name = "Убрать папки карты (Doors/ExtraDoors)",
     CurrentValue = state.removeDoors,
     Callback = function(v)
         state.removeDoors = v
@@ -540,7 +536,7 @@ UtilitiesTab:CreateToggle({
     end
 })
 UtilitiesTab:CreateToggle({
-    Name = "Убрать сейф двери",
+    Name = "Убрать двери сейфов",
     CurrentValue = state.removeSafes,
     Callback = function(v)
         state.removeSafes = v

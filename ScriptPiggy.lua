@@ -1,5 +1,3 @@
--- Piggy Script by Вася2 (с изменениями)
-
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
     Name = "Piggy Script",
@@ -32,7 +30,6 @@ local Window = Rayfield:CreateWindow({
     }
 })
 
--- Сервисы
 local Players     = game:GetService("Players")
 local RunService  = game:GetService("RunService")
 local RepStorage  = game:GetService("ReplicatedStorage")
@@ -40,7 +37,6 @@ local UIS         = game:GetService("UserInputService")
 local LP          = Players.LocalPlayer
 local Camera      = workspace.CurrentCamera
 
--- Дефолтные значения
 local defaults = {
     speed    = 16,
     jump     = 50,
@@ -54,9 +50,7 @@ local lightingDefaults = {
     fogEnd   = game.Lighting.FogEnd
 }
 
--- Состояние
 local state = {
-    -- movement
     speed        = defaults.speed,
     jump         = defaults.jump,
     gravity      = defaults.gravity,
@@ -69,20 +63,17 @@ local state = {
     fly          = false,
     noclip       = false,
     infJump      = false,
-    -- voting
     mapToggle    = false,
     mapChoice    = "House",
     votedMap     = false,
     modeToggle   = false,
     modeChoice   = "Bot",
     votedMode    = false,
-    -- utilities
     fullbright   = false,
     removeDoors  = false,
     removeSafes  = false
 }
 
--- Применить основные настройки (speed, jump, gravity, fov)
 local function applySettings()
     local char = LP.Character
     if char then
@@ -96,7 +87,6 @@ local function applySettings()
     Camera.FieldOfView        = state.fovToggle     and state.fov     or defaults.fov
 end
 
--- Авто-обновление speed каждую секунду
 do
     local acc = 0
     RunService.Heartbeat:Connect(function(dt)
@@ -111,7 +101,6 @@ do
     end)
 end
 
--- Ноуклип
 local function updateNoclip()
     if state.noclip and LP.Character then
         for _, p in ipairs(LP.Character:GetDescendants()) do
@@ -121,14 +110,12 @@ local function updateNoclip()
 end
 RunService.Heartbeat:Connect(updateNoclip)
 
--- Бесконечный прыжок
 UIS.JumpRequest:Connect(function()
     if state.infJump and LP.Character then
         LP.Character:FindFirstChildOfClass("Humanoid"):ChangeState("Jumping")
     end
 end)
 
--- Флай (ПК и мобильный)
 local bodyVelocity
 local mobileFlyDir, mobileFlyActive = Vector3.new(), false
 local function createMobileFlyButtons()
@@ -179,14 +166,12 @@ RunService.Heartbeat:Connect(function()
             bodyVelocity.P = 1e4
         end
         local dir = Vector3.new()
-        -- ПК
         if UIS:IsKeyDown(Enum.KeyCode.W) then dir = dir + Camera.CFrame.LookVector end
         if UIS:IsKeyDown(Enum.KeyCode.S) then dir = dir - Camera.CFrame.LookVector end
         if UIS:IsKeyDown(Enum.KeyCode.A) then dir = dir - Camera.CFrame.RightVector end
         if UIS:IsKeyDown(Enum.KeyCode.D) then dir = dir + Camera.CFrame.RightVector end
         if UIS:IsKeyDown(Enum.KeyCode.Space) then dir = dir + Vector3.new(0,1,0) end
         if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then dir = dir - Vector3.new(0,1,0) end
-        -- Моб
         if UIS.TouchEnabled then
             createMobileFlyButtons()
             if mobileFlyActive and mobileFlyDir.Magnitude > 0 then
@@ -204,7 +189,6 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
--- Авто-голосование
 RunService.Heartbeat:Connect(function()
     local phase = workspace.GameFolder.Phase.Value
     if phase == "Map Voting" and state.mapToggle and not state.votedMap then
@@ -218,11 +202,6 @@ RunService.Heartbeat:Connect(function()
     if phase ~= "Piggy Voting" then state.votedMode = false end
 end)
 
--- ====================================================================
--- Утилиты: автоматическое определение карты, fullbright/fog, remove folders & doors, чертёж
--- ====================================================================
-
--- 1) Поиск карты (модель с наибольшим кол-вом BasePart)
 local function findMapModel()
     local best, maxCount = nil, 0
     for _, m in ipairs(workspace:GetChildren()) do
@@ -237,17 +216,18 @@ local function findMapModel()
     return best
 end
 
--- 2) Удаление любых Folder в карте
 local function removeMapFolders()
     local mdl = findMapModel()
     if mdl then
-        for _, c in ipairs(mdl:GetChildren()) do
-            if c:IsA("Folder") then c:Destroy() end
+        for _, name in ipairs({"Doors", "ExtraDoors"}) do
+            local folder = mdl:FindFirstChild(name)
+            if folder and folder:IsA("Folder") then
+                folder:Destroy()
+            end
         end
     end
 end
 
--- 3) Удаление дверей и сейфов
 local function removeDoorsIn(item)
     item = item or workspace
     for _, d in ipairs(item:GetDescendants()) do
@@ -263,24 +243,23 @@ local function removeDoorsIn(item)
     end
 end
 
--- 4) Подписки для утилит
 local utilConnections = {}
 local function manageUtilities()
-    -- отписка
     for _, c in pairs(utilConnections) do c:Disconnect() end
     utilConnections = {}
 
     if state.removeDoors or state.removeSafes then
         removeMapFolders()
         removeDoorsIn()
+        
         utilConnections.heartbeat = RunService.Heartbeat:Connect(function()
             removeMapFolders()
-            removeDoorsIn()
         end)
+        
         utilConnections.descAdded = workspace.DescendantAdded:Connect(function(d)
             local mdl = findMapModel()
             if mdl and d:IsDescendantOf(mdl) then
-                if d:IsA("Folder") then
+                if d:IsA("Folder") and (d.Name == "Doors" or d.Name == "ExtraDoors") then
                     d:Destroy()
                 elseif d:IsA("Model") then
                     local n = d.Name
@@ -296,7 +275,6 @@ local function manageUtilities()
     end
 end
 
--- 5) Fullbright / Fog авто-обновление каждую 1 сек
 task.spawn(function()
     while true do
         if state.fullbright then
@@ -312,7 +290,6 @@ task.spawn(function()
     end
 end)
 
--- 6) Сбор чертежа (по числовым именам BasePart)
 local function collectBlueprints()
     local char = LP.Character
     if not char then return end
@@ -334,7 +311,6 @@ local function collectBlueprints()
         return Rayfield:Notify({Title="Чертёж",Content="Чертёж не найден!",Duration=3,Image=4483362458})
     end
 
-    -- отключаем коллизии
     local colMap = {}
     for _, x in ipairs(char:GetDescendants()) do
         if x:IsA("BasePart") then
@@ -353,7 +329,6 @@ local function collectBlueprints()
         cnt = cnt + 1
     end
 
-    -- вернуть коллизии и позицию
     root.CFrame = orig
     for part, coll in pairs(colMap) do
         if part.Parent then part.CanCollide = coll end
@@ -366,44 +341,6 @@ local function collectBlueprints()
     })
 end
 
--- ====================================================================
--- UI: вкладка Утилиты
--- ====================================================================
-local UtilitiesTab = Window:CreateTab("Утилиты", 4483362458)
-UtilitiesTab:CreateSection("Fullbright / Fog")
-UtilitiesTab:CreateToggle({
-    Name = "Вкл освещение + Выкл туман",
-    CurrentValue = state.fullbright,
-    Callback = function(v) state.fullbright = v end
-})
-
-UtilitiesTab:CreateSection("Blueprints")
-UtilitiesTab:CreateButton({
-    Name = "Собрать чертёж",
-    Callback = collectBlueprints
-})
-
-UtilitiesTab:CreateSection("Doors & Folders")
-UtilitiesTab:CreateToggle({
-    Name = "Убрать двери и папки",
-    CurrentValue = state.removeDoors,
-    Callback = function(v)
-        state.removeDoors = v
-        manageUtilities()
-    end
-})
-UtilitiesTab:CreateToggle({
-    Name = "Убрать сейф двери",
-    CurrentValue = state.removeSafes,
-    Callback = function(v)
-        state.removeSafes = v
-        manageUtilities()
-    end
-})
-
--- ====================================================================
--- UI: вкладка LocalPlayer
--- ====================================================================
 local PlayerTab = Window:CreateTab("LocalPlayer", 4483362458)
 PlayerTab:CreateSection("Скорость")
 PlayerTab:CreateSlider({
@@ -510,9 +447,38 @@ PlayerTab:CreateToggle({
     Callback = function(v) state.modeToggle = v; if v then state.votedMode = false end end
 })
 
--- ====================================================================
--- Teleport Tab (обновление списка каждые 2 сек)
--- ====================================================================
+local UtilitiesTab = Window:CreateTab("Утилиты", 4483362458)
+UtilitiesTab:CreateSection("Fullbright / Fog")
+UtilitiesTab:CreateToggle({
+    Name = "Вкл освещение + Выкл туман",
+    CurrentValue = state.fullbright,
+    Callback = function(v) state.fullbright = v end
+})
+
+UtilitiesTab:CreateSection("Blueprints")
+UtilitiesTab:CreateButton({
+    Name = "Собрать чертёж",
+    Callback = collectBlueprints
+})
+
+UtilitiesTab:CreateSection("Doors & Folders")
+UtilitiesTab:CreateToggle({
+    Name = "Убрать двери и папки",
+    CurrentValue = state.removeDoors,
+    Callback = function(v)
+        state.removeDoors = v
+        manageUtilities()
+    end
+})
+UtilitiesTab:CreateToggle({
+    Name = "Убрать сейф двери",
+    CurrentValue = state.removeSafes,
+    Callback = function(v)
+        state.removeSafes = v
+        manageUtilities()
+    end
+})
+
 local TeleportTab = Window:CreateTab("Телепортация", 4483362458)
 TeleportTab:CreateSection("Список игроков")
 local function getPlayerNames()
@@ -561,12 +527,8 @@ TeleportTab:CreateButton({
     end
 })
 
--- ====================================================================
--- Hook CharacterAdded для сохранения состояний
--- ====================================================================
 LP.CharacterAdded:Connect(function(char)
     char:WaitForChild("Humanoid").Died:Connect(function()
-        -- сохраняем toggles
         state.speedToggle   = state.speedToggle
         state.jumpToggle    = state.jumpToggle
         state.gravityToggle = state.gravityToggle
@@ -575,5 +537,4 @@ LP.CharacterAdded:Connect(function(char)
     applySettings()
 end)
 
--- Начальная инициализация
 if LP.Character then applySettings() end

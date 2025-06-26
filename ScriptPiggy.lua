@@ -1,3 +1,5 @@
+-- Piggy Script by Вася2 (оптимизированная версия)
+
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
     Name = "Piggy Script",
@@ -6,8 +8,6 @@ local Window = Rayfield:CreateWindow({
     LoadingSubtitle = "by Вася2",
     Theme = "Default",
     ToggleUIKeybind = "K",
-    DisableRayfieldPrompts = false,
-    DisableBuildWarnings = false,
     ConfigurationSaving = {
         Enabled = true,
         FolderName = "PiggyConfig",
@@ -30,6 +30,7 @@ local Window = Rayfield:CreateWindow({
     }
 })
 
+-- Сервисы
 local Players     = game:GetService("Players")
 local RunService  = game:GetService("RunService")
 local RepStorage  = game:GetService("ReplicatedStorage")
@@ -37,6 +38,7 @@ local UIS         = game:GetService("UserInputService")
 local LP          = Players.LocalPlayer
 local Camera      = workspace.CurrentCamera
 
+-- Дефолтные значения
 local defaults = {
     speed    = 16,
     jump     = 50,
@@ -50,7 +52,9 @@ local lightingDefaults = {
     fogEnd   = game.Lighting.FogEnd
 }
 
+-- Состояние
 local state = {
+    -- movement
     speed        = defaults.speed,
     jump         = defaults.jump,
     gravity      = defaults.gravity,
@@ -63,17 +67,20 @@ local state = {
     fly          = false,
     noclip       = false,
     infJump      = false,
+    -- voting
     mapToggle    = false,
     mapChoice    = "House",
     votedMap     = false,
     modeToggle   = false,
     modeChoice   = "Bot",
     votedMode    = false,
+    -- utilities
     fullbright   = false,
     removeDoors  = false,
     removeSafes  = false
 }
 
+-- Применить основные настройки (speed, jump, gravity, fov)
 local function applySettings()
     local char = LP.Character
     if char then
@@ -87,6 +94,7 @@ local function applySettings()
     Camera.FieldOfView        = state.fovToggle     and state.fov     or defaults.fov
 end
 
+-- Авто-обновление speed каждую секунду
 do
     local acc = 0
     RunService.Heartbeat:Connect(function(dt)
@@ -101,6 +109,7 @@ do
     end)
 end
 
+-- Ноуклип
 local function updateNoclip()
     if state.noclip and LP.Character then
         for _, p in ipairs(LP.Character:GetDescendants()) do
@@ -110,12 +119,14 @@ local function updateNoclip()
 end
 RunService.Heartbeat:Connect(updateNoclip)
 
+-- Бесконечный прыжок
 UIS.JumpRequest:Connect(function()
     if state.infJump and LP.Character then
         LP.Character:FindFirstChildOfClass("Humanoid"):ChangeState("Jumping")
     end
 end)
 
+-- Флай (ПК и мобильный)
 local bodyVelocity
 local mobileFlyDir, mobileFlyActive = Vector3.new(), false
 local function createMobileFlyButtons()
@@ -166,12 +177,14 @@ RunService.Heartbeat:Connect(function()
             bodyVelocity.P = 1e4
         end
         local dir = Vector3.new()
+        -- ПК
         if UIS:IsKeyDown(Enum.KeyCode.W) then dir = dir + Camera.CFrame.LookVector end
         if UIS:IsKeyDown(Enum.KeyCode.S) then dir = dir - Camera.CFrame.LookVector end
         if UIS:IsKeyDown(Enum.KeyCode.A) then dir = dir - Camera.CFrame.RightVector end
         if UIS:IsKeyDown(Enum.KeyCode.D) then dir = dir + Camera.CFrame.RightVector end
         if UIS:IsKeyDown(Enum.KeyCode.Space) then dir = dir + Vector3.new(0,1,0) end
         if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then dir = dir - Vector3.new(0,1,0) end
+        -- Моб
         if UIS.TouchEnabled then
             createMobileFlyButtons()
             if mobileFlyActive and mobileFlyDir.Magnitude > 0 then
@@ -189,6 +202,7 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
+-- Авто-голосование
 RunService.Heartbeat:Connect(function()
     local phase = workspace.GameFolder.Phase.Value
     if phase == "Map Voting" and state.mapToggle and not state.votedMap then
@@ -202,6 +216,11 @@ RunService.Heartbeat:Connect(function()
     if phase ~= "Piggy Voting" then state.votedMode = false end
 end)
 
+-- ====================================================================
+-- Утилиты: автоматическое определение карты, fullbright/fog, remove folders & doors, чертёж
+-- ====================================================================
+
+-- 1) Поиск карты (модель с наибольшим кол-вом BasePart)
 local function findMapModel()
     local best, maxCount = nil, 0
     for _, m in ipairs(workspace:GetChildren()) do
@@ -216,6 +235,7 @@ local function findMapModel()
     return best
 end
 
+-- 2) Удаление ТОЛЬКО папок Doors и ExtraDoors в карте
 local function removeMapFolders()
     local mdl = findMapModel()
     if mdl then
@@ -228,12 +248,13 @@ local function removeMapFolders()
     end
 end
 
+-- 3) Удаление дверей и сейфов
 local function removeDoorsIn(item)
     item = item or workspace
     for _, d in ipairs(item:GetDescendants()) do
         if d:IsA("Model") then
             local n = d.Name
-            if state.removeDoors and (n=="Door" or n=="SideDoor" or n=="ExtraDoors" or n=="Doors" or n=="CrawlSpaces") then
+            if state.removeDoors and (n=="Door" or n=="SideDoor" or n=="CrawlSpaces") then
                 d:Destroy()
             end
             if state.removeSafes and n:lower():find("safe") then
@@ -243,8 +264,10 @@ local function removeDoorsIn(item)
     end
 end
 
+-- 4) Подписки для утилит
 local utilConnections = {}
 local function manageUtilities()
+    -- отписка
     for _, c in pairs(utilConnections) do c:Disconnect() end
     utilConnections = {}
 
@@ -252,18 +275,22 @@ local function manageUtilities()
         removeMapFolders()
         removeDoorsIn()
         
+        -- Постоянное удаление папок
         utilConnections.heartbeat = RunService.Heartbeat:Connect(function()
             removeMapFolders()
         end)
         
+        -- Удаление новых объектов
         utilConnections.descAdded = workspace.DescendantAdded:Connect(function(d)
             local mdl = findMapModel()
             if mdl and d:IsDescendantOf(mdl) then
+                -- Удаление ТОЛЬКО папок Doors и ExtraDoors
                 if d:IsA("Folder") and (d.Name == "Doors" or d.Name == "ExtraDoors") then
                     d:Destroy()
+                -- Удаление дверей и сейфов
                 elseif d:IsA("Model") then
                     local n = d.Name
-                    if state.removeDoors and (n=="Door" or n=="SideDoor" or n=="ExtraDoors" or n=="Doors" or n=="CrawlSpaces") then
+                    if state.removeDoors and (n=="Door" or n=="SideDoor" or n=="CrawlSpaces") then
                         d:Destroy()
                     end
                     if state.removeSafes and n:lower():find("safe") then
@@ -275,72 +302,104 @@ local function manageUtilities()
     end
 end
 
-task.spawn(function()
-    while true do
-        if state.fullbright then
-            game.Lighting.Ambient  = Color3.new(1,1,1)
-            game.Lighting.FogStart  = 0
-            game.Lighting.FogEnd    = 99999
-        else
-            game.Lighting.Ambient  = lightingDefaults.ambient
-            game.Lighting.FogStart = lightingDefaults.fogStart
-            game.Lighting.FogEnd   = lightingDefaults.fogEnd
-        end
-        task.wait(1)
+-- 5) Оптимизированный Fullbright / Fog (обновление только при изменении состояния)
+local fullbrightConnection
+if fullbrightConnection then fullbrightConnection:Disconnect() end
+fullbrightConnection = game:GetService("RunService").Heartbeat:Connect(function()
+    if state.fullbright then
+        game.Lighting.Ambient = Color3.new(1, 1, 1)
+        game.Lighting.FogStart = 0
+        game.Lighting.FogEnd = 999999
     end
 end)
 
+-- 6) Исправленный сбор чертежей (телепорт к ближайшему)
 local function collectBlueprints()
     local char = LP.Character
-    if not char then return end
+    if not char then 
+        Rayfield:Notify({Title="Чертёж",Content="Персонаж не найден",Duration=3,Image=4483362458})
+        return 
+    end
+    
     local root = char:FindFirstChild("HumanoidRootPart")
-    if not root then return end
-
-    local mdl = findMapModel()
-    if not mdl then
-        return Rayfield:Notify({Title="Чертёж",Content="Модель карты не найдена",Duration=3,Image=4483362458})
+    if not root then 
+        Rayfield:Notify({Title="Чертёж",Content="RootPart не найден",Duration=3,Image=4483362458})
+        return 
     end
-
-    local parts = {}
-    for _, p in ipairs(mdl:GetDescendants()) do
-        if p:IsA("BasePart") and tostring(p.Name):match("^-?%d+$") then
-            table.insert(parts, p)
+    
+    -- Ищем ближайший чертеж
+    local closestBlueprint = nil
+    local minDistance = math.huge
+    
+    for _, item in ipairs(workspace:GetDescendants()) do
+        if item.Name == "BlueprintItem" then
+            local position = nil
+            if item:IsA("BasePart") then
+                position = item.Position
+            elseif item:IsA("Model") and item.PrimaryPart then
+                position = item.PrimaryPart.Position
+            end
+            
+            if position then
+                local distance = (root.Position - position).Magnitude
+                if distance < minDistance then
+                    minDistance = distance
+                    closestBlueprint = item
+                end
+            end
         end
     end
-    if #parts == 0 then
-        return Rayfield:Notify({Title="Чертёж",Content="Чертёж не найден!",Duration=3,Image=4483362458})
+    
+    if not closestBlueprint then
+        Rayfield:Notify({Title="Чертёж",Content="Чертёж не найден!",Duration=3,Image=4483362458})
+        return
     end
-
-    local colMap = {}
-    for _, x in ipairs(char:GetDescendants()) do
-        if x:IsA("BasePart") then
-            colMap[x] = x.CanCollide
-            x.CanCollide = false
+    
+    -- Определяем позицию чертежа
+    local targetPos = nil
+    if closestBlueprint:IsA("BasePart") then
+        targetPos = closestBlueprint.Position
+    elseif closestBlueprint:IsA("Model") and closestBlueprint.PrimaryPart then
+        targetPos = closestBlueprint.PrimaryPart.Position
+    end
+    
+    if not targetPos then return end
+    
+    -- Отключаем коллизии
+    local originalCollisions = {}
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            originalCollisions[part] = part.CanCollide
+            part.CanCollide = false
         end
     end
-
-    local orig = root.CFrame
-    local cnt = 0
-    for _, p in ipairs(parts) do
-        root.CFrame = p.CFrame * CFrame.new(0,3,0)
-        task.wait(0.3)
-        root.CFrame = p.CFrame
-        task.wait(0.2)
-        cnt = cnt + 1
+    
+    -- Телепортируемся к чертежу
+    local originalPosition = root.CFrame
+    root.CFrame = CFrame.new(targetPos + Vector3.new(0, 3, 0))
+    task.wait(0.2)
+    root.CFrame = CFrame.new(targetPos)
+    task.wait(0.2)
+    
+    -- Возвращаем коллизии и позицию
+    root.CFrame = originalPosition
+    for part, collide in pairs(originalCollisions) do
+        if part:IsA("BasePart") and part.Parent then
+            part.CanCollide = collide
+        end
     end
-
-    root.CFrame = orig
-    for part, coll in pairs(colMap) do
-        if part.Parent then part.CanCollide = coll end
-    end
-
+    
     Rayfield:Notify({
         Title="Чертёж",
-        Content=string.format("Собрано %d частей!", cnt),
-        Duration=5, Image=4483362458
+        Content="Чертёж собран!",
+        Duration=3,
+        Image=4483362458
     })
 end
 
+-- ====================================================================
+-- UI: вкладка LocalPlayer (первая вкладка)
+-- ====================================================================
 local PlayerTab = Window:CreateTab("LocalPlayer", 4483362458)
 PlayerTab:CreateSection("Скорость")
 PlayerTab:CreateSlider({
@@ -447,12 +506,22 @@ PlayerTab:CreateToggle({
     Callback = function(v) state.modeToggle = v; if v then state.votedMode = false end end
 })
 
+-- ====================================================================
+-- UI: вкладка Утилиты (вторая вкладка)
+-- ====================================================================
 local UtilitiesTab = Window:CreateTab("Утилиты", 4483362458)
 UtilitiesTab:CreateSection("Fullbright / Fog")
 UtilitiesTab:CreateToggle({
     Name = "Вкл освещение + Выкл туман",
     CurrentValue = state.fullbright,
-    Callback = function(v) state.fullbright = v end
+    Callback = function(v) 
+        state.fullbright = v 
+        if not v then
+            game.Lighting.Ambient = lightingDefaults.ambient
+            game.Lighting.FogStart = lightingDefaults.fogStart
+            game.Lighting.FogEnd = lightingDefaults.fogEnd
+        end
+    end
 })
 
 UtilitiesTab:CreateSection("Blueprints")
@@ -479,6 +548,9 @@ UtilitiesTab:CreateToggle({
     end
 })
 
+-- ====================================================================
+-- UI: вкладка Телепортация (третья вкладка)
+-- ====================================================================
 local TeleportTab = Window:CreateTab("Телепортация", 4483362458)
 TeleportTab:CreateSection("Список игроков")
 local function getPlayerNames()
@@ -527,8 +599,12 @@ TeleportTab:CreateButton({
     end
 })
 
+-- ====================================================================
+-- Hook CharacterAdded для сохранения состояний
+-- ====================================================================
 LP.CharacterAdded:Connect(function(char)
     char:WaitForChild("Humanoid").Died:Connect(function()
+        -- сохраняем toggles
         state.speedToggle   = state.speedToggle
         state.jumpToggle    = state.jumpToggle
         state.gravityToggle = state.gravityToggle
@@ -537,4 +613,5 @@ LP.CharacterAdded:Connect(function(char)
     applySettings()
 end)
 
+-- Начальная инициализация
 if LP.Character then applySettings() end
